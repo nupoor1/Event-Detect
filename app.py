@@ -10,15 +10,12 @@ model = YOLO("yolov8n.pt")
 csv_filename = "event_log.csv"
 lock = threading.Lock()
 
-# Shared webcam feed
 shared_feed = cv2.VideoCapture(0)
-time.sleep(1)  # allow camera to warm up
+time.sleep(1)
 
-# Cameras list (virtual cameras)
 cameras = []
 camera_id_counter = 1
 
-# Cleanup on exit
 def cleanup():
     if shared_feed is not None and shared_feed.isOpened():
         shared_feed.release()
@@ -26,13 +23,11 @@ def cleanup():
     cv2.destroyAllWindows()
 atexit.register(cleanup)
 
-# CSV logging
 def write_csv(camera_id, event, count):
     with open(csv_filename, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), camera_id, event, count])
 
-# ---------------- Flask routes ----------------
 
 @app.route("/")
 def landing():
@@ -51,10 +46,9 @@ def add_camera():
     if mode == "restricted":
         max_people = None
 
-    # Initialize shared webcam if it's None (after stop)
     if shared_feed is None:
         shared_feed = cv2.VideoCapture(0)
-        time.sleep(1)  # give camera time to warm up
+        time.sleep(1)
 
     camera_obj = {
         "id": camera_id_counter,
@@ -65,7 +59,6 @@ def add_camera():
         "latest_frame": None
     }
 
-    # Start detection thread
     thread = threading.Thread(target=camera_worker, args=(camera_obj,), daemon=True)
     thread.start()
 
@@ -80,13 +73,12 @@ def start_event():
     global shared_feed
     if shared_feed is None:
         shared_feed = cv2.VideoCapture(0)
-        time.sleep(1)  # give webcam time to warm up
+        time.sleep(1)
 
     with lock:
         for cam in cameras:
             cam["running"] = True
 
-    # Initialize CSV
     with open(csv_filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Timestamp", "Camera ID", "Event", "People Count"])
@@ -98,9 +90,8 @@ def stop_event():
     with lock:
         for cam in cameras:
             cam["running"] = False
-        cameras = []  # clear all cameras
+        cameras = []
 
-    # Release shared webcam
     if shared_feed is not None and shared_feed.isOpened():
         shared_feed.release()
         shared_feed = None
@@ -123,22 +114,21 @@ def alerts():
     with lock:
         return jsonify([{"camera_id": c["id"], "message": c["alert"]} for c in cameras if c["alert"]])
 
-# ---------------- Camera detection worker ----------------
+
+
 def camera_worker(camera_obj):
     while True:
         success, frame = shared_feed.read()
         if not success or frame is None:
             time.sleep(0.05)
             continue
-
-        # Optionally resize for speed
+        
         small_frame = cv2.resize(frame, (320, 320))
 
         if camera_obj["running"]:
             results = model(small_frame, stream=True)
             person_count = sum(1 for r in results for box in r.boxes if int(box.cls)==0)
 
-            # Determine alert
             alert = None
             if camera_obj["mode"]=="restricted" and person_count>0:
                 alert = f"Person in restricted area! Count: {person_count}"
@@ -148,23 +138,20 @@ def camera_worker(camera_obj):
                 write_csv(camera_obj["id"], "Crowd Exceeded", person_count)
             camera_obj["alert"] = alert
 
-        # Store latest frame (just raw frame, no polygons)
         _, buffer = cv2.imencode(".jpg", frame)
         camera_obj["latest_frame"] = buffer.tobytes()
         time.sleep(0.05)
 
-# ---------------- Frame generator ----------------
 def gen_frames(camera_obj):
     while True:
         if camera_obj["latest_frame"] is not None:
             frame = camera_obj["latest_frame"]
         else:
-            # Black placeholder
             blank = np.zeros((480,640,3), dtype=np.uint8)
             _, buffer = cv2.imencode(".jpg", blank)
             frame = buffer.tobytes()
         yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"+frame+b"\r\n")
 
-# ---------------- Run ----------------
+
 if __name__=="__main__":
     app.run(debug=True, threaded=True)

@@ -13,7 +13,6 @@
 
   h3 { margin-bottom:5px; }
 
-  /* Header */
   .header {
     background:#111111;
     padding:16px;
@@ -25,12 +24,10 @@
     border-radius:6px 6px 0 0;
   }
 
-  /* Layout */
   .container { display:flex; gap:15px; padding:15px; flex-wrap: wrap; }
   .left { flex:3; min-width:480px; }
   .right { flex:1; min-width:200px; }
 
-  /* Panels */
   .panel {
     background:#111111;
     padding:15px;
@@ -39,7 +36,6 @@
     border:1px solid #222;
   }
 
-  /* Inputs */
   select, input {
     width:100%;
     padding:6px;
@@ -53,7 +49,6 @@
   }
   select:disabled, input:disabled { opacity:0.5; cursor:not-allowed; }
 
-  /* Buttons */
   button {
     padding:10px;
     margin-top:8px;
@@ -72,7 +67,6 @@
   .stop{background:#dc3545;} 
   .download{background:#20c997;}
 
-  /* Camera feeds */
   #camera-container {
     display:grid;
     grid-template-columns: repeat(2, 1fr);
@@ -89,7 +83,6 @@
     border-radius:6px;
   }
 
-  /* Alerts box */
   .alerts-box {
     max-height:250px;
     overflow-y:auto;
@@ -101,7 +94,6 @@
     border-radius:6px;
   }
 
-  /* Camera label */
   .camera-label { font-size:14px; margin-top:4px; }
 
 </style>
@@ -112,10 +104,8 @@
 
 <div class="container">
 
-  <!-- Left column -->
   <div class="left">
 
-    <!-- Add Camera Panel -->
     <div class="panel">
       <h3>Add Camera</h3>
       <select id="camera-mode">
@@ -129,7 +119,6 @@
       <button onclick="addCamera()">Add Camera</button>
     </div>
 
-    <!-- Cameras Panel -->
     <div class="panel" id="camera-container-panel">
       <h3>Cameras</h3>
       <div id="camera-container"></div>
@@ -137,17 +126,14 @@
 
   </div>
 
-  <!-- Right column -->
   <div class="right">
 
-    <!-- Event Controls -->
     <div class="panel">
       <button class="start" id="start-btn" onclick="startEvent()">Start Event</button>
       <button class="stop" id="stop-btn" onclick="stopEvent()" disabled>Stop Event</button>
       <button class="download" id="download-btn" style="display:none;" onclick="downloadCSV()">Download CSV</button>
     </div>
 
-    <!-- Alerts -->
     <div class="panel">
       <h3>Alerts</h3>
       <div id="alerts" class="alerts-box">No alerts yet.</div>
@@ -161,13 +147,11 @@ let cameraCounter = 0;
 let cameraSettings = {};
 let eventRunning = false;
 
-// Enable/disable max_people input based on mode
 document.getElementById("camera-mode").addEventListener("change", function(){
   const mode = this.value;
   document.getElementById("max-people").disabled = (mode === "restricted");
 });
 
-// Add new camera
 function addCamera(){
   if(eventRunning){ alert("Cannot add cameras during an event."); return; }
 
@@ -195,7 +179,6 @@ function addCamera(){
   });
 }
 
-// Start event
 function startEvent(){
   fetch("/start_event",{method:"POST"}).then(()=>{
     eventRunning = true;
@@ -204,7 +187,6 @@ function startEvent(){
   });
 }
 
-// Stop event
 function stopEvent(){
   fetch("/stop_event",{method:"POST"}).then(()=>{
     eventRunning = false;
@@ -219,10 +201,8 @@ function stopEvent(){
   });
 }
 
-// Download CSV
 function downloadCSV(){ window.location = "/download"; }
 
-// Poll alerts every 1 second
 function pollAlerts(){
   if(!eventRunning) return;
   fetch("/alerts").then(res=>res.json()).then(data=>{
@@ -240,8 +220,7 @@ function pollAlerts(){
       
       const feed = document.getElementById("feed-"+alert.camera_id);
       if(feed) feed.classList.add("camera-alert");
-
-      // Update current people under camera
+      
       const label = document.querySelector(`#camera-${alert.camera_id} .camera-label`);
       if(label && cameraSettings[alert.camera_id].max_people){
         if(label){
