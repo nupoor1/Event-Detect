@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Event Detect</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  body { 
+    background:#000000; 
+    color:white; 
+  }
+
+  h3 { margin-bottom:5px; }
+
+  /* Header */
+  .header {
+    background:#111111;
+    padding:16px;
+    text-align:center;
+    font-size:28px;
+    font-weight:bold;
+    letter-spacing:1px;
+    border-bottom:1px solid #222;
+    border-radius:6px 6px 0 0;
+  }
+
+  /* Layout */
+  .container { display:flex; gap:15px; padding:15px; flex-wrap: wrap; }
+  .left { flex:3; min-width:480px; }
+  .right { flex:1; min-width:200px; }
+
+  /* Panels */
+  .panel {
+    background:#111111;
+    padding:15px;
+    border-radius:6px;
+    margin-bottom:15px;
+    border:1px solid #222;
+  }
+
+  /* Inputs */
+  select, input {
+    width:100%;
+    padding:6px;
+    margin-top:5px;
+    border:none;
+    border-radius:6px;
+    background:#000000;
+    color:white;
+    outline:1px solid #222;
+    font-family: inherit;
+  }
+  select:disabled, input:disabled { opacity:0.5; cursor:not-allowed; }
+
+  /* Buttons */
+  button {
+    padding:10px;
+    margin-top:8px;
+    width:100%;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:bold;
+    transition: filter 0.2s;
+    font-family: inherit;
+  }
+  button:hover { filter: brightness(85%); }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+
+  .start{background:#0d6efd;} 
+  .stop{background:#dc3545;} 
+  .download{background:#20c997;}
+
+  /* Camera feeds */
+  #camera-container {
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:10px;
+  }
+
+  .camera-feed { border:2px solid #555; width:100%; transition: border 0.3s; border-radius:6px; }
+  .camera-alert { border-color:#dc3545 !important; }
+
+  #camera-container div {
+    background:#000000;
+    padding:8px;
+    border:1px solid #222;
+    border-radius:6px;
+  }
+
+  /* Alerts box */
+  .alerts-box {
+    max-height:250px;
+    overflow-y:auto;
+    background:#000000;
+    padding:10px;
+    border:1px solid #222;
+    font-size:14px;
+    line-height:1.5;
+    border-radius:6px;
+  }
+
+  /* Camera label */
+  .camera-label { font-size:14px; margin-top:4px; }
+
+</style>
+</head>
+<body>
+
+<div class="header">Cameras and Alerts</div>
+
+<div class="container">
+
+  <!-- Left column -->
+  <div class="left">
+
+    <!-- Add Camera Panel -->
+    <div class="panel">
+      <h3>Add Camera</h3>
+      <select id="camera-mode">
+        <option value="crowd">Crowd</option>
+        <option value="restricted">Restricted</option>
+      </select>
+
+      <label for="max-people">Max People:</label>
+      <input type="number" id="max-people" min="1" value="5">
+
+      <button onclick="addCamera()">Add Camera</button>
+    </div>
+
+    <!-- Cameras Panel -->
+    <div class="panel" id="camera-container-panel">
+      <h3>Cameras</h3>
+      <div id="camera-container"></div>
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="right">
+
+    <!-- Event Controls -->
+    <div class="panel">
+      <button class="start" id="start-btn" onclick="startEvent()">Start Event</button>
+      <button class="stop" id="stop-btn" onclick="stopEvent()" disabled>Stop Event</button>
+      <button class="download" id="download-btn" style="display:none;" onclick="downloadCSV()">Download CSV</button>
+    </div>
+
+    <!-- Alerts -->
+    <div class="panel">
+      <h3>Alerts</h3>
+      <div id="alerts" class="alerts-box">No alerts yet.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let cameraCounter = 0;
+let cameraSettings = {};
+let eventRunning = false;
+
+// Enable/disable max_people input based on mode
+document.getElementById("camera-mode").addEventListener("change", function(){
+  const mode = this.value;
+  document.getElementById("max-people").disabled = (mode === "restricted");
+});
+
+// Add new camera
+function addCamera(){
+  if(eventRunning){ alert("Cannot add cameras during an event."); return; }
+
+  const mode = document.getElementById("camera-mode").value;
+  let max_people = null;
+  if(mode === "crowd"){
+    max_people = document.getElementById("max-people").value;
+  }
+
+  fetch("/add_camera",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({mode:mode, max_people:max_people})
+  }).then(res=>res.json()).then(data=>{
+    cameraCounter++;
+    cameraSettings[data.camera_id] = {mode:mode, max_people:max_people, current_people:0};
+
+    const camDiv = document.createElement("div");
+    camDiv.id = "camera-" + data.camera_id;
+    camDiv.innerHTML = `
+      <img class="camera-feed" id="feed-${data.camera_id}" src="/video_feed/${data.camera_id}">
+      <div class="camera-label">Camera ${data.camera_id}: ${mode.charAt(0).toUpperCase() + mode.slice(1)}</div>
+    `;
+    document.getElementById("camera-container").appendChild(camDiv);
+  });
+}
+
+// Start event
+function startEvent(){
+  fetch("/start_event",{method:"POST"}).then(()=>{
+    eventRunning = true;
+    document.getElementById("start-btn").disabled = true;
+    document.getElementById("stop-btn").disabled = false;
+  });
+}
+
+// Stop event
+function stopEvent(){
+  fetch("/stop_event",{method:"POST"}).then(()=>{
+    eventRunning = false;
+    document.getElementById("start-btn").disabled = false;
+    document.getElementById("stop-btn").disabled = true;
+
+    const container = document.getElementById("camera-container");
+    container.innerHTML = "";
+    cameraSettings = {};
+
+    document.getElementById("download-btn").style.display = "block";
+  });
+}
+
+// Download CSV
+function downloadCSV(){ window.location = "/download"; }
+
+// Poll alerts every 1 second
+function pollAlerts(){
+  if(!eventRunning) return;
+  fetch("/alerts").then(res=>res.json()).then(data=>{
+    const alertsBox = document.getElementById("alerts");
+    alertsBox.innerHTML = "";
+    for(let camId in cameraSettings){
+      const feed = document.getElementById("feed-"+camId);
+      if(feed) feed.classList.remove("camera-alert");
+    }
+
+    data.forEach(alert=>{
+      const li = document.createElement("div");
+      li.textContent = `Camera ${alert.camera_id}: ${alert.message}`;
+      alertsBox.appendChild(li);
+      
+      const feed = document.getElementById("feed-"+alert.camera_id);
+      if(feed) feed.classList.add("camera-alert");
+
+      // Update current people under camera
+      const label = document.querySelector(`#camera-${alert.camera_id} .camera-label`);
+      if(label && cameraSettings[alert.camera_id].max_people){
+        if(label){
+            const peopleCount = alert.current_people || 0;
+            const modeText = cameraSettings[alert.camera_id].mode.charAt(0).toUpperCase() + cameraSettings[alert.camera_id].mode.slice(1);
+            label.textContent = `Camera ${alert.camera_id}: ${modeText}, ${peopleCount} person(s)`;
+}
+
+      }
+    });
+  });
+}
+
+setInterval(pollAlerts,1000);
+</script>
+
+</body>
+</html>

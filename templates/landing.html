@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Event Detect</title>
+<style>
+  * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  body {
+    margin: 0;
+    background:#000000;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+  }
+
+  .container {
+    text-align:center;
+    padding:40px;
+    border-radius:8px;
+    background:#111111;
+    border:1px solid #222;
+  }
+
+  h1 { font-size:42px; margin-bottom:12px; }
+  p { font-size:18px; opacity:0.8; }
+
+  button {
+    margin-top:25px;
+    padding:14px 25px;
+    font-size:18px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    background:#0d6efd;
+    color:white;
+    transition: filter 0.2s;
+    font-weight:bold;
+    font-family:inherit;
+  }
+
+  button:hover { filter: brightness(85%); }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Event Detect</h1>
+    <p>Real-time monitoring for event safety and security analytics.</p>
+    <button onclick="window.location='/dashboard'">Check it out!</button>
+  </div>
+</body>
+</html>
