@@ -58,7 +58,7 @@ pip install flask opencv-python numpy ultralytics
 python app.py
 ```
 
-Then open `http://127.0.0.1:5000/`. On first run, `ultralytics` will download `yolov8n.pt` automatically (not checked into the repo), so you'll need internet access the first time.
+Then open `http://127.0.0.1:5000/`. On first run, `ultralytics` will download `yolov8n.pt` automatically.
 
 ## Limitations & what I'd build next
 
