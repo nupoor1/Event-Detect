@@ -47,7 +47,7 @@ Each zone runs on its own background thread: read a frame, run YOLOv8n, check it
 | Computer vision / ML | Ultralytics YOLOv8 (`yolov8n.pt`), OpenCV |
 | Concurrency | Python `threading` — one worker thread per zone, a `Lock` guarding shared state |
 | Storage | In-memory zone state; CSV file (`event_log.csv`) for the audit log |
-| Frontend | Server-rendered Jinja templates, vanilla JS/CSS (no framework, no build step) |
+| Frontend | Server-rendered Jinja templates |
 
 ## Getting started
 
