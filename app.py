@@ -17,6 +17,7 @@ cameras = []
 camera_id_counter = 1
 
 def cleanup():
+    global shared_feed
     if shared_feed is not None and shared_feed.isOpened():
         shared_feed.release()
         shared_feed = None
@@ -40,11 +41,19 @@ def dashboard():
 @app.route("/add_camera", methods=["POST"])
 def add_camera():
     global camera_id_counter, shared_feed
-    data = request.json
-    mode = data["mode"]
-    max_people = data.get("max_people")
-    if mode == "restricted":
-        max_people = None
+    data = request.json or {}
+    mode = data.get("mode")
+    if mode not in ("crowd", "restricted"):
+        return jsonify({"error": "mode must be 'crowd' or 'restricted'"}), 400
+
+    max_people = None
+    if mode == "crowd":
+        try:
+            max_people = int(data.get("max_people"))
+            if max_people < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify({"error": "max_people must be a positive integer for crowd mode"}), 400
 
     if shared_feed is None:
         shared_feed = cv2.VideoCapture(0)
@@ -55,7 +64,9 @@ def add_camera():
         "mode": mode,
         "max_people": max_people,
         "running": False,
+        "active": True,
         "alert": None,
+        "person_count": 0,
         "latest_frame": None
     }
 
@@ -90,6 +101,7 @@ def stop_event():
     with lock:
         for cam in cameras:
             cam["running"] = False
+            cam["active"] = False
         cameras = []
 
     if shared_feed is not None and shared_feed.isOpened():
@@ -112,30 +124,41 @@ def video_feed(camera_id):
 @app.route("/alerts")
 def alerts():
     with lock:
-        return jsonify([{"camera_id": c["id"], "message": c["alert"]} for c in cameras if c["alert"]])
+        return jsonify([{"camera_id": c["id"], "message": c["alert"], "current_people": c["person_count"]} for c in cameras if c["alert"]])
 
 
 
 def camera_worker(camera_obj):
-    while True:
-        success, frame = shared_feed.read()
+    while camera_obj.get("active", True):
+        feed = shared_feed
+        if feed is None:
+            time.sleep(0.05)
+            continue
+
+        success, frame = feed.read()
         if not success or frame is None:
             time.sleep(0.05)
             continue
-        
+
         small_frame = cv2.resize(frame, (320, 320))
 
         if camera_obj["running"]:
             results = model(small_frame, stream=True)
             person_count = sum(1 for r in results for box in r.boxes if int(box.cls)==0)
+            camera_obj["person_count"] = person_count
 
+            prev_alert = camera_obj["alert"]
             alert = None
+            event_type = None
             if camera_obj["mode"]=="restricted" and person_count>0:
                 alert = f"Person in restricted area! Count: {person_count}"
-                write_csv(camera_obj["id"], "Restricted Area Violation", person_count)
-            elif camera_obj["mode"]=="crowd" and camera_obj["max_people"] is not None and person_count > int(camera_obj["max_people"]):
+                event_type = "Restricted Area Violation"
+            elif camera_obj["mode"]=="crowd" and camera_obj["max_people"] is not None and person_count > camera_obj["max_people"]:
                 alert = f"Crowd limit exceeded! Count: {person_count}"
-                write_csv(camera_obj["id"], "Crowd Exceeded", person_count)
+                event_type = "Crowd Exceeded"
+
+            if alert and not prev_alert:
+                write_csv(camera_obj["id"], event_type, person_count)
             camera_obj["alert"] = alert
 
         _, buffer = cv2.imencode(".jpg", frame)
@@ -154,4 +177,4 @@ def gen_frames(camera_obj):
 
 
 if __name__=="__main__":
-    app.run(debug=True, threaded=True)
+    app.run(debug=True, threaded=True, use_reloader=False)
